@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tests de Machine Learning – Vergara</title>
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/components.css">
+  <style>
+    body { max-width: 860px; margin: 0 auto; padding: 24px 16px; }
+    .resumen { font-size: 1.25rem; font-weight: 700; }
+    .test { padding: 8px 0; border-bottom: 1px solid var(--line); }
+    .test small { display: block; color: var(--accent); font-family: ui-monospace, Menlo, Consolas, monospace; margin-top: 2px; }
+  </style>
+</head>
+<body>
+  <h1>Tests de Machine Learning</h1>
+  <p class="muted">Página independiente: carga solo los datos y los algoritmos de <code>js/services/ml/</code> y ejecuta las aserciones. El detalle también se imprime en la consola del navegador.</p>
+
+  <section class="card">
+    <div id="resumen" class="resumen">Ejecutando…</div>
+    <div id="lista"></div>
+    <div class="acciones" style="margin-top:14px"><a class="btn" href="index.html" style="text-decoration:none;display:inline-block">Volver al prototipo</a></div>
+  </section>
+
+  <script src="js/data.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/services/ml/estadistica.js"></script>
+  <script src="js/services/ml/regresionLineal.js"></script>
+  <script src="js/services/ml/arbolDecision.js"></script>
+  <script src="js/services/ml/knn.js"></script>
+  <script src="js/services/ml/svm.js"></script>
+  <script src="js/services/ml/kmeans.js"></script>
+  <script src="js/services/ml/dbscan.js"></script>
+  <script src="js/services/ml/aStar.js"></script>
+  <script src="js/services/ml/hillClimbing.js"></script>
+  <script src="js/services/ml/bfs.js"></script>
+  <script src="js/services/ml/dfs.js"></script>
+  <script src="js/services/ml/metricas.js"></script>
+
+  <script>
+  // ----- Mini-framework de pruebas -----
+  let pasaron = 0, fallaron = 0;
+
+  function mostrarOk(nombre) {
+    pasaron++;
+    console.log("✅ " + nombre);
+    document.getElementById("lista").insertAdjacentHTML("beforeend", `<div class="test"><span class="ok">✅</span> ${nombre}</div>`);
+  }
+  function mostrarFail(nombre, e) {
+    fallaron++;
+    console.error("❌ " + nombre, e);
+    document.getElementById("lista").insertAdjacentHTML("beforeend", `<div class="test"><span class="bad">❌</span> ${nombre}<small>${e.message}</small></div>`);
+  }
+  function test(nombre, fn) {
+    try { fn(); mostrarOk(nombre); } catch (e) { mostrarFail(nombre, e); }
+  }
+  function expect(actual) {
+    const f = v => JSON.stringify(v);
+    return {
+      toBe(esperado) { if (actual !== esperado) throw new Error(`Se esperaba ${f(esperado)} pero se obtuvo ${f(actual)}`); },
+      toBeCloseTo(esperado, tol) {
+        tol = tol === undefined ? 0.01 : tol;
+        if (typeof actual !== "number" || isNaN(actual) || Math.abs(actual - esperado) > tol)
+          throw new Error(`Se esperaba ≈${esperado} (±${tol}) pero se obtuvo ${f(actual)}`);
+      },
+      toBeLessThan(maximo) { if (!(actual < maximo)) throw new Error(`Se esperaba < ${maximo} pero se obtuvo ${f(actual)}`); },
+      toBeGreaterThan(minimo) { if (!(actual > minimo)) throw new Error(`Se esperaba > ${minimo} pero se obtuvo ${f(actual)}`); },
+      toBeLessThanOrEqual(maximo) { if (!(actual <= maximo + 1e-9)) throw new Error(`Se esperaba <= ${maximo} pero se obtuvo ${f(actual)}`); },
+      toContain(elemento) { if (!actual.includes(elemento)) throw new Error(`${f(actual)} no contiene ${f(elemento)}`); },
+      toEqual(esperado) { if (f(actual) !== f(esperado)) throw new Error(`Se esperaba ${f(esperado)} pero se obtuvo ${f(actual)}`); },
+      toThrow() {
+        let lanzo = false;
+        try { actual(); } catch (e) { lanzo = true; }
+        if (!lanzo) throw new Error("Se esperaba que la función lanzara un error");
+      }
+    };
+  }
+  const esNumero = v => typeof v === "number" && isFinite(v);
+
+  // ----- Atajos y datos de prueba -----
+  const ML = Vergara.ml, E = ML.estadistica, R = ML.regresionLineal, A = ML.arbolDecision;
+  const O = { x: 0, y: 0 };
+
+  // ----- Estadística descriptiva -----
+  test("1. estadistica.media([1,2,3,4,5]) === 3", () => expect(E.media([1, 2, 3, 4, 5])).toBe(3));
+  test("2. estadistica.mediana([1,2,3,4,5]) === 3", () => expect(E.mediana([1, 2, 3, 4, 5])).toBe(3));
+  test("3. estadistica.mediana([1,2,3,4]) === 2.5", () => expect(E.mediana([1, 2, 3, 4])).toBe(2.5));
+  test("4. estadistica.varianza([1,2,3,4,5]) ≈ 2 (tolerancia 0.01)", () => expect(E.varianza([1, 2, 3, 4, 5])).toBeCloseTo(2, 0.01));
+  test("5. estadistica.detectarOutliers([1,1,1,1,100]) contiene el 100", () => {
+    expect(E.detectarOutliers([1, 1, 1, 1, 100]).map(o => o.valor)).toContain(100);
+  });
+
+  // ----- Regresión lineal -----
+  const X = [1, 2, 3, 4, 5, 6, 7, 8].map(x => [x]);
+  const y = X.map(f => 2 * f[0] + 1);
+  const modeloLineal = R.entrenar(X, y);   // con los valores por defecto (learningRate=0.1, epochs=2000)
+  test("6. regresionLineal: entrenar con y = 2x + 1, predecir x=10 → ≈ 21", () => expect(R.predecir(modeloLineal, [10])).toBeCloseTo(21, 0.05));
+  // Test 7 usa tolerancia por errores de punto flotante en JS.
+  // Comparar floats con === es mala práctica; usamos toBeCloseTo.
+  test("7. regresionLineal: R² de un ajuste perfecto === 1", () => expect(R.coeficienteDeterminacion(modeloLineal, X, y)).toBeCloseTo(1, 1e-6));
+  test("8. regresionLineal: predecir con modelo vacío → lanza error", () => expect(() => R.predecir({}, [1])).toThrow());
+
+  // ----- Árbol de decisión -----
+  const f = (monto, cumpl) => ({ monto, numItems: 2, distrito: "Comas", clienteHistorial: 5, clienteCumplimiento: cumpl });
+  test("9. arbolDecision: entropía de un set puro === 0", () => expect(A.calcularEntropia(["a", "a", "a", "a"])).toBe(0));
+  test("10. arbolDecision: entropía de 50/50 === 1", () => expect(A.calcularEntropia(["a", "b", "a", "b"])).toBe(1));
+  test("11. arbolDecision: entrenar con datos triviales y predecir", () => {
+    const datos = [
+      { features: f(100, 1), label: "bajo" }, { features: f(150, 1), label: "bajo" }, { features: f(120, 1), label: "bajo" },
+      { features: f(900, 1), label: "alto" }, { features: f(950, 1), label: "alto" }, { features: f(880, 1), label: "alto" }
+    ];
+    const arbol = A.entrenar(datos);
+    expect(A.predecir(arbol, f(50, 1)).label).toBe("bajo");
+    expect(A.predecir(arbol, f(1000, 1)).label).toBe("alto");
+  });
+
+  // ----- KNN -----
+  const datosKnn = [
+    { features: { a: 0, b: 0 }, label: "x" }, { features: { a: 1, b: 0 }, label: "x" }, { features: { a: 0, b: 1 }, label: "x" },
+    { features: { a: 10, b: 10 }, label: "y" }, { features: { a: 9, b: 10 }, label: "y" }, { features: { a: 10, b: 9 }, label: "y" }
+  ];
+  test("12. knn: predecir con vecinos claros", () => {
+    const m = ML.knn.entrenar(datosKnn, { k: 3 });
+    expect(ML.knn.predecir(m, { a: 1, b: 1 }).label).toBe("x");
+    expect(ML.knn.predecir(m, { a: 9, b: 9 }).label).toBe("y");
+  });
+  test("13. knn: k mayor que samples → error", () => {
+    const m = ML.knn.entrenar(datosKnn, { k: 3 });
+    expect(() => ML.knn.predecir(m, { a: 1, b: 1 }, { k: 50 })).toThrow();
+  });
+
+  // ----- K-Means -----
+  const grupoA = [[0, 0], [0.2, 0.1], [0.1, 0.3], [0.3, 0.2], [0.1, 0.1]];
+  const grupoB = [[10, 10], [10.2, 10.1], [9.9, 10.3], [10.3, 9.8], [10.1, 10.1]];
+  const puntos = grupoA.concat(grupoB);
+  test("14. kmeans: entrenar con 2 grupos obvios → 2 clusters separados", () => {
+    const m = ML.kmeans.entrenar(puntos, { k: 2 });
+    const a = m.asignaciones;
+    expect(new Set(a.slice(0, 5)).size).toBe(1);
+    expect(new Set(a.slice(5)).size).toBe(1);
+    expect(a[0] !== a[5]).toBe(true);
+  });
+  test("15. kmeans: silhouette > 0.5 en datos separables", () => {
+    const m = ML.kmeans.entrenar(puntos, { k: 2 });
+    expect(ML.kmeans.silhouetteScore(puntos, m.asignaciones)).toBeGreaterThan(0.5);
+  });
+
+  // ----- DBSCAN -----
+  const compacto = Array.from({ length: 10 }, (_, i) => [i * 0.1, (i % 3) * 0.1]);
+  test("16. dbscan: detectar 1 outlier en cluster compacto", () => {
+    const r = ML.dbscan.entrenar(compacto.concat([[5, 5]]), { eps: 0.5, minSamples: 3 });
+    expect(r.outliers).toEqual([10]);
+    expect(r.labels[10]).toBe(-1);
+  });
+  test("17. dbscan: todos los puntos densos → ningún outlier", () => {
+    expect(ML.dbscan.entrenar(compacto, { eps: 0.5, minSamples: 3 }).outliers.length).toBe(0);
+  });
+
+  // ----- Búsqueda y rutas -----
+  const linea = [{ id: 1, x: 1, y: 0 }, { id: 2, x: 2, y: 0 }, { id: 3, x: 3, y: 0 }];
+  test("18. aStar: origen (0,0), paradas [(1,0),(2,0),(3,0)] → orden = [1,2,3]", () => {
+    const r = ML.aStar.optimizar(O, linea);
+    expect(r.orden).toEqual([1, 2, 3]);   // devuelve los id de las paradas
+    expect(r.distanciaTotal).toBeCloseTo(3, 1e-9);
+    // Sin id, cada elemento de `orden` es {indice, x, y, ...}
+    const sinId = ML.aStar.optimizar(O, [{ x: 2, y: 0 }, { x: 1, y: 0 }]);
+    expect(sinId.orden.map(p => p.indice)).toEqual([1, 0]);
+    expect(sinId.orden[0].x).toBe(1);
+  });
+  test("19. hillClimbing: encuentra ruta mejor o igual que aleatorio", () => {
+    const paradas = [{ x: 5, y: 1 }, { x: 1, y: 0 }, { x: 4, y: 4 }, { x: 2, y: 3 }, { x: 6, y: 5 }];
+    const r = ML.hillClimbing.optimizar(O, paradas, { semilla: 3 });
+    expect(r.distanciaTotal).toBeLessThanOrEqual(r.distanciaInicial);
+  });
+  const grafo = { A: ["B", "C"], B: ["A", "D"], C: ["A", "D"], D: ["B", "C", "E"], E: ["D"] };
+  test("20. bfs: encontrar camino en grafo pequeño", () => {
+    const r = ML.bfs.explorar(grafo, "A", "E");
+    expect(r.camino[0]).toBe("A");
+    expect(r.camino[r.camino.length - 1]).toBe("E");
+    expect(r.camino.length).toBe(4);
+  });
+  test("21. dfs: encontrar camino en grafo pequeño", () => {
+    const r = ML.dfs.explorar(grafo, "A", "E");
+    expect(r.camino[0]).toBe("A");
+    expect(r.camino[r.camino.length - 1]).toBe("E");
+    expect(r.visitados.length).toBeGreaterThan(0);
+  });
+
+  // ----- Consistencia general -----
+  test("22. Todos los algoritmos retornan resultados consistentes (no NaN, no undefined)", () => {
+    const r = R.entrenar(X, y);
+    const s = E.resumen([30, 34, 28, 36, 40, 38]);
+    const km = ML.kmeans.entrenar(puntos, { k: 2 });
+    const db = ML.dbscan.entrenar(puntos, { eps: 1, minSamples: 3 });
+    const as = ML.aStar.optimizar(O, linea), hc = ML.hillClimbing.optimizar(O, linea);
+    const numeros = [].concat(
+      Object.values(s).filter(esNumero), r.pesos, [r.bias, R.errorCuadraticoMedio(r, X, y), R.raizErrorCuadratico(r, X, y), R.coeficienteDeterminacion(r, X, y)],
+      km.centroides.flat(), [ML.kmeans.silhouetteScore(puntos, km.asignaciones)], [as.distanciaTotal, hc.distanciaTotal, as.iteraciones, hc.iteraciones]);
+    numeros.forEach(n => { if (!esNumero(n)) throw new Error("Valor no numérico: " + n); });
+    [s, km, db, as, hc, A.predecir(A.entrenar(Vergara.data.historicoRiesgo), Vergara.data.historicoRiesgo[0].features),
+     ML.knn.predecir(ML.knn.entrenar(datosKnn, { k: 3 }), { a: 1, b: 1 }), ML.bfs.explorar(grafo, "A", "E"), ML.dfs.explorar(grafo, "A", "E")]
+      .forEach(v => { if (v === undefined || v === null) throw new Error("Resultado indefinido"); });
+  });
+
+  // ----- SVM lineal -----
+  test("23. SVM separa perfectamente 2 clases linealmente separables", () => {
+    const Xs = [[1, 1], [2, 2], [3, 3], [-1, -1], [-2, -2], [-3, -3]], ys = [1, 1, 1, -1, -1, -1];
+    const m = ML.svm.entrenar(Xs, ys, { learningRate: 0.1, epochs: 1000 });
+    expect(ML.svm.accuracy(m, Xs, ys)).toBeCloseTo(1, 0.01);
+  });
+  test("24. SVM tiene accuracy > 0.8 en datos casi separables", () => {
+    // Dos nubes separadas con 2 puntos mal etiquetados (ruido): ≈ 93 % es lo máximo alcanzable
+    const Xs = [], ys = [];
+    for (let i = 0; i < 14; i++) {
+      Xs.push([-3 + (i % 4) * 0.4, -3 + (i % 3) * 0.5]); ys.push(-1);
+      Xs.push([3 - (i % 4) * 0.4, 3 - (i % 3) * 0.5]); ys.push(1);
+    }
+    ys[0] = 1; ys[1] = -1;   // ruido
+    const m = ML.svm.entrenar(Xs, ys, { learningRate: 0.1, epochs: 1000 });
+    expect(ML.svm.accuracy(m, Xs, ys)).toBeGreaterThan(0.8);
+  });
+  test("25. SVM con datos no separables tiene accuracy < 1", () => {
+    // Clases alternadas en una sola dimensión: ningún hiperplano lineal las separa
+    const Xs = [[1], [2], [3], [4], [5], [6]], ys = [1, -1, 1, -1, 1, -1];
+    const m = ML.svm.entrenar(Xs, ys, { learningRate: 0.1, epochs: 500 });
+    expect(ML.svm.accuracy(m, Xs, ys)).toBeLessThan(1);
+  });
+
+  // ----- Resumen -----
+  const total = pasaron + fallaron;
+  const resumen = document.getElementById("resumen");
+  resumen.innerHTML = `${pasaron} tests passed / ${fallaron} tests failed <span class="muted">(de ${total})</span>`;
+  resumen.className = "resumen " + (fallaron ? "bad" : "ok");
+  document.title = (fallaron ? "❌ " : "✅ ") + pasaron + "/" + total + " – Tests ML";
+  console.log(`Resultado: ${pasaron} passed / ${fallaron} failed`);
+  </script>
+</body>
+</html>

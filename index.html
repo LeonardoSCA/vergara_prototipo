@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vergara Intelligent Logistics – Prototipo mejorado</title>
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <div class="logo">VERGARA INTELLIGENT LOGISTICS</div>
+      <div class="subtitle">Prototipo funcional mejorado · Distribuidora Vergara S.A.C.</div>
+    </div>
+    <div id="sesion" class="sesion"></div>
+  </header>
+  <nav id="menu" class="menu"></nav>
+
+  <main id="contenido" class="contenido"></main>
+  <div id="modal"></div>
+  <div id="toast" class="toast"></div>
+
+  <!-- El orden de carga importa: datos -> estado -> utilidades -> servicios -> vistas -> main -->
+  <script src="js/data.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/services/storage.js"></script>
+  <script src="js/services/notificaciones.js"></script>
+  <script src="js/services/inventario.js"></script>
+  <!-- Módulos de Machine Learning (deben cargarse antes de prediccion.js y rutas.js) -->
+  <script src="js/services/ml/estadistica.js"></script>
+  <script src="js/services/ml/regresionLineal.js"></script>
+  <script src="js/services/ml/arbolDecision.js"></script>
+  <script src="js/services/ml/knn.js"></script>
+  <script src="js/services/ml/svm.js"></script>
+  <script src="js/services/ml/kmeans.js"></script>
+  <script src="js/services/ml/dbscan.js"></script>
+  <script src="js/services/ml/aStar.js"></script>
+  <script src="js/services/ml/hillClimbing.js"></script>
+  <script src="js/services/ml/bfs.js"></script>
+  <script src="js/services/ml/dfs.js"></script>
+  <script src="js/services/ml/metricas.js"></script>
+  <script src="js/services/prediccion.js"></script>
+  <script src="js/services/pedidos.js"></script>
+  <script src="js/services/analitica.js"></script>
+  <script src="js/services/rutas.js"></script>
+  <script src="js/services/chatbot.js"></script>
+  <script src="js/services/exportar.js"></script>
+  <script src="js/services/escaner.js"></script>
+  <script src="js/views/login.js"></script>
+  <script src="js/views/cliente.js"></script>
+  <script src="js/views/asistente.js"></script>
+  <script src="js/views/ventas.js"></script>
+  <script src="js/views/almacen.js"></script>
+  <script src="js/views/distribucion.js"></script>
+  <script src="js/views/dashboard.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
